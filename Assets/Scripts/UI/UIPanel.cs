@@ -6,11 +6,14 @@ public class UIPanel : MonoBehaviour
     [Header("Panel Settings")]
     [SerializeField] private bool startVisible = false;
     [SerializeField] private float animationDuration = 0.3f;
+    [SerializeField] private bool useAnimations = true;
 
     public UIPanelType PanelType { get; private set; }
     public bool IsVisible { get; private set; }
+    public bool IsTransitioning { get; private set; } // New: track animation state
 
     private CanvasGroup canvasGroup;
+    private Coroutine currentTransition; // Track current animation coroutine
 
     private void Awake()
     {
@@ -39,12 +42,43 @@ public class UIPanel : MonoBehaviour
     public void Show()
     {
         gameObject.SetActive(true);
-        StartCoroutine(AnimateShow());
+
+        // Ensure we can start coroutines after activating
+        if (gameObject.activeInHierarchy)
+        {
+            StartCoroutine(AnimateShow());
+        }
+        else
+        {
+            // Fallback: Show immediately without animation
+            SetVisibleImmediate(true);
+        }
     }
 
     public void Hide()
     {
         StartCoroutine(AnimateHide());
+    }
+
+    private void StopCurrentTransition()
+    {
+        if (currentTransition != null)
+        {
+            StopCoroutine(currentTransition);
+            currentTransition = null;
+        }
+        IsTransitioning = false;
+    }
+
+    private IEnumerator ShowCoroutine()
+    {
+        // Wait one frame to ensure GameObject is fully activated
+        yield return null;
+        yield return StartCoroutine(AnimateShow());
+
+        // Animation complete
+        IsTransitioning = false;
+        currentTransition = null;
     }
 
     private IEnumerator AnimateShow()
@@ -60,6 +94,10 @@ public class UIPanel : MonoBehaviour
         yield return StartCoroutine(AnimateFade(1f, 0f));
         gameObject.SetActive(false);
         OnHideComplete();
+
+        // Animation complete
+        IsTransitioning = false;
+        currentTransition = null;
     }
 
     private IEnumerator AnimateFade(float startAlpha, float endAlpha)
@@ -81,6 +119,9 @@ public class UIPanel : MonoBehaviour
 
     private void SetVisibleImmediate(bool visible)
     {
+        // Stop any ongoing transition
+        StopCurrentTransition();
+
         IsVisible = visible;
         gameObject.SetActive(visible);
 
@@ -94,6 +135,12 @@ public class UIPanel : MonoBehaviour
             canvasGroup.alpha = 0f;
             OnHideComplete();
         }
+    }
+
+    private void OnDestroy()
+    {
+        // Clean up any ongoing transitions
+        StopCurrentTransition();
     }
 
     protected virtual void OnShowComplete()

@@ -14,9 +14,15 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameObject pausePanel;
     [SerializeField] private GameObject settingsPanel;
 
+    [Header("Input Settings")]
+    [SerializeField] private float inputCooldown = 0.2f; // Prevent spam clicking
+
     // Current active panels
     private List<UIPanel> activePanels = new List<UIPanel>();
     private Dictionary<UIPanelType, UIPanel> registeredPanels = new Dictionary<UIPanelType, UIPanel>();
+
+    // Input debouncing
+    private float lastInputTime = 0f;
 
     // UI State
     public bool IsAnyPanelOpen => activePanels.Count > 0;
@@ -76,16 +82,23 @@ public class UIManager : MonoBehaviour
 
     private void HandleUIInput()
     {
+        // Input cooldown to prevent spam
+        if (Time.unscaledTime - lastInputTime < inputCooldown) return;
+
+        bool inputReceived = false;
+
         // Inventory toggle
         if (Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.I))
         {
             TogglePanel(UIPanelType.Inventory);
+            inputReceived = true;
         }
 
         // Quest log toggle
         if (Input.GetKeyDown(KeyCode.Q))
         {
             TogglePanel(UIPanelType.Quest);
+            inputReceived = true;
         }
 
         // Pause menu toggle
@@ -100,6 +113,13 @@ public class UIManager : MonoBehaviour
                 CloseAllPanelsExcept(UIPanelType.HUD);
                 OpenPanel(UIPanelType.Pause);
             }
+            inputReceived = true;
+        }
+
+        // Update last input time if any input was received
+        if (inputReceived)
+        {
+            lastInputTime = Time.unscaledTime;
         }
     }
 
@@ -108,6 +128,9 @@ public class UIManager : MonoBehaviour
         if (!registeredPanels.ContainsKey(panelType)) return;
 
         UIPanel panel = registeredPanels[panelType];
+
+        // Don't open if already transitioning or already open
+        if (panel.IsTransitioning || activePanels.Contains(panel)) return;
 
         if (!activePanels.Contains(panel))
         {
@@ -124,6 +147,9 @@ public class UIManager : MonoBehaviour
         if (!registeredPanels.ContainsKey(panelType)) return;
 
         UIPanel panel = registeredPanels[panelType];
+
+        // Don't close if already transitioning or already closed
+        if (panel.IsTransitioning || !activePanels.Contains(panel)) return;
 
         if (activePanels.Contains(panel))
         {
